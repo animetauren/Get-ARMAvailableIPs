@@ -31,7 +31,7 @@ Get-ASMAvailableIPs - Gets the available IPs for Azure Service Manager Resources
 ```powershell
 .\Get-ASMAvailableIPs.ps1 -Scope ALL
 .\Get-ASMAvailableIPs.ps1 -Scope ALL -Path "D:\IPResults"
-.\Get-ASMAvailableIPs.ps1 -Scope SUBNET -Scope SUBNET -SOURCESUB SubnetName -SOURCEVNET VNETName
+.\Get-ASMAvailableIPs.ps1 -Scope SUBNET -SOURCESUB SubnetName -SOURCEVNET VNETName
 ```
 
 ## ARM Sample Run
