@@ -331,7 +331,7 @@ $tableCountIndex--
 }
 ##############
 
-$file = "C:\Temp\AvailableIps-for-Vnet-$vnetname-Subnet-$subnet.csv"
+$file = "$Path\AvailableIps-for-Vnet-$vnetname-Subnet-$subnet.csv"
 $table | Select-Object IPAddress,Availability,ResourceName | Export-Csv -Path $file -NoTypeInformation | Out-Null
 
 #
@@ -560,7 +560,7 @@ $tableCountIndex--
 }
 ##############
 
-$file = "C:\Temp\AvailableIps-for-Vnet-$SourceVNET-Subnet-$SourceSUB.csv"
+$file = "$Path\AvailableIps-for-Vnet-$SourceVNET-Subnet-$SourceSUB.csv"
 $table | Select-Object IPAddress,Availability,ResourceName | Export-Csv -Path $file -NoTypeInformation | Out-Null
 
 } #closes First If Loop checking Sub & VNET info.
