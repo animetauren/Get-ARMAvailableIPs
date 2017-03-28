@@ -46,18 +46,14 @@
 #>
 
 param(
-		[parameter(Mandatory=$true)][ValidateNotNullOrEmpty()]
+	[parameter(Mandatory=$true)][ValidateNotNullOrEmpty()]
         [String]$Scope,
-
         [Parameter(Mandatory=$false)][ValidateNotNullOrEmpty()]
-		[String]$SourceSUB,
-
+	String]$SourceSUB,
         [Parameter(Mandatory=$false)][ValidateNotNullOrEmpty()]
-		[String]$SourceVNET,
-
+	String]$SourceVNET,
         [Parameter(Mandatory=$false)][ValidateNotNullOrEmpty()]
-		[String]$Path
-
+	String]$Path
 	)
 
 function New-IPRange ($start, $end) {
