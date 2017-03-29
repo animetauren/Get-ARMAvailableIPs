@@ -1,7 +1,7 @@
 # Get-AzureAvailableIPs
 
-Get-ARMAvailableIPs - Gets the available IPs for Azure Resource Manager Resources.
-Get-ASMAvailableIPs - Gets the available IPs for Azure Service Manager Resources.
+- Get-ARMAvailableIPs - Gets the available IPs for Azure Resource Manager Resources.
+- Get-ASMAvailableIPs - Gets the available IPs for Azure Service Manager Resources.
 
 ## Features - ARM
 
