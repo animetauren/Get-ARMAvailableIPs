@@ -344,7 +344,7 @@ $tableCountIndex--
 $file = "$Path\AvailableIps-for-Vnet-$vnetname-Subnet-$subnet.csv"
 $table | Select-Object IPAddress,Availability,ResourceName | Export-Csv -Path $file -NoTypeInformation | Out-Null
 
-#Import-CSV $file | ConvertTo-Html -Head $css -Body "<h1>Email Report</h1>`n<h5>Generated on $(Get-Date)</h5>" | Out-File "C:\temp\test.html"
+#Import-CSV $file | ConvertTo-Html -Head $css -Body "<h1>Source VNET: $SourceVNET - Source Subnet: $SourceSUB</h1>" | Out-File "C:\temp\test.html"
 
 #
 $table = @()
