@@ -15,6 +15,8 @@
     -Orphan NICs that do not have VMs attached to them.
     -VPN Gateways with BGP Peering, get's the IP for the BGP Peering
     -Added support for Multi-IP NICs
+    -Added support for Application Gateway
+    -Added support for API Management
 
 .PARAMETER Scope
     ALL : Runs script against all Subnets
@@ -42,18 +44,22 @@
 .NOTES
     File Name   : Get-ARMAvailableIPs.ps1
     Author      : Henry Robalino - https://anmtrn.com
-    Version     : 1.1.3 - Mar 28, 2017
+    Version     : 1.1.4 - Aug 15, 2018
 #>
 
 param(
-	[parameter(Mandatory=$true)][ValidateNotNullOrEmpty()]
+		[parameter(Mandatory=$true)][ValidateNotNullOrEmpty()]
         [String]$Scope,
+
         [Parameter(Mandatory=$false)][ValidateNotNullOrEmpty()]
-	[String]$SourceSUB,
+		[String]$SourceSUB,
+
         [Parameter(Mandatory=$false)][ValidateNotNullOrEmpty()]
-	[String]$SourceVNET,
+		[String]$SourceVNET,
+
         [Parameter(Mandatory=$false)][ValidateNotNullOrEmpty()]
-	[String]$Path
+		[String]$Path
+
 	)
 
 function New-IPRange ($start, $end) {
@@ -97,7 +103,7 @@ function New-IPv4toBin ($ipv4){
  return $binNum -join ""
 }
 
-#region Global Variables
+#Global Variables
 
 Write-Host "Checking if AzureRM Module is installed..."
 if((Get-Module -ListAvailable -Name AzureRM.*)) {
@@ -114,6 +120,8 @@ else{
 $vnetObjects = (Get-AzureRmVirtualNetwork)
 $nicObjects = (Get-AzureRmNetworkInterface)
 $ilbObjects = (Get-AzureRmLoadBalancer -ErrorAction SilentlyContinue -WarningAction SilentlyContinue)
+$apimObjects = (Get-AzureRmApiManagement -ErrorAction SilentlyContinue -WarningAction SilentlyContinue)
+$appgwObjects = (Get-AzureRmApplicationGateway -ErrorAction SilentlyContinue -WarningAction SilentlyContinue)
 
 if(!$Path){
     $Path = 'C:\Temp\AvailableIPs'        
@@ -129,20 +137,6 @@ $table = @()
 $ipTable = @()
 $availTable = @()
 $nameTable= @()
-
-$css = @"
-<style>
-h1, h5, th { text-align: center; font-family: Segoe UI; }
-table { margin: auto; font-family: Segoe UI; box-shadow: 10px 10px 5px #888; border: thin ridge grey; }
-th { background: #0046c3; color: #fff; max-width: 400px; padding: 5px 10px; }
-td { font-size: 11px; padding: 5px 20px; color: #000; }
-tr { background: #b8d1f3; }
-tr:nth-child(even) { background: #dae5f4; }
-tr:nth-child(odd) { background: #b8d1f3; }
-</style>
-"@
-
-#endregion
 
 switch($Scope)
 {
@@ -179,6 +173,20 @@ foreach ($nic in $nicObjects){
 foreach ($ilb in $ilbObjects){
     if(($ilb.FrontendIPConfigurations.Subnet.Id) -match $vnetname){
         $ilbIPArray += ,$ilb.FrontendIPConfigurations.PrivateIpAddress
+    }   
+}
+
+#Get's the IPs of APIMs that are in the VNET we are checking.
+foreach ($apim in $apimObjects){
+    if(($apim.VirtualNetwork.SubnetResourceId.split("/")[-3]) -eq $vnetname){
+        $apimIPArray += ,$apim.StaticIPs[1]
+    }   
+}
+
+#Get's the IPs of AppGWs that are in the VNET we are checking.
+foreach ($appgw in $appgwObjects){
+    if(($appgw.FrontendIpConfigurations.Subnet.Id) -match $vnetname){
+        $appgwIPArray += ,$appgw.FrontendIpConfigurations.PrivateIPAddress
     }   
 }
 
@@ -297,13 +305,37 @@ foreach($ip in $IPRangesArray[$reservedIndex]){
             foreach ($ilb in $ilbObjects){
                 $ilbIP = $ilb.FrontendIPConfigurations.PrivateIpAddress
                 if($ilbIP -eq $ip){
-                    $ilbName = $ilb.name
-                    }                   
+                    $ilbName = $ilb.Name
+                }                   
             }
             Write-Host "$ip is being used by an ILB - $ilbName" -ForegroundColor Red
             $ipTable += ,$ip
             $availTable += ,"False"
             $nameTable += ,$ilbName
+        }
+        elseif($apimIPArray -contains $ip){
+            foreach($apim in $apimObjects){
+                $apimIP = $apim.StaticIPs[1]
+                if($apimIP -eq $ip){
+                    $apimName = $apim.Name
+                }
+            }
+            Write-Host "$ip is being used by an APIM - $apimName" -ForegroundColor Red
+            $ipTable += ,$ip
+            $availTable += ,"False"
+            $nameTable += ,$apimName
+        }
+        elseif($appgwIPArray -contains $ip){
+            foreach($appgw in $appgwObjects){
+                $appgwIP = $appgw.FrontendIPConfigurations.PrivateIpAddress
+                if($appgwIP -eq $ip){
+                    $appgwName = $appgw.Name
+                }
+            }
+            Write-Host "$ip is being used by an AppGW - $appgwName" -ForegroundColor Red
+            $ipTable += ,$ip
+            $availTable += ,"False"
+            $nameTable += ,$appgwName
         }
         elseif($gwIP -contains $ip){
             Write-Host "$ip is being used by a GW - $gwName" -ForegroundColor Red
@@ -344,8 +376,6 @@ $tableCountIndex--
 $file = "$Path\AvailableIps-for-Vnet-$vnetname-Subnet-$subnet.csv"
 $table | Select-Object IPAddress,Availability,ResourceName | Export-Csv -Path $file -NoTypeInformation | Out-Null
 
-#Import-CSV $file | ConvertTo-Html -Head $css -Body "<h1>Source VNET: $SourceVNET - Source Subnet: $SourceSUB</h1>" | Out-File "C:\temp\test.html"
-
 #
 $table = @()
 $ipTable = @()
@@ -363,10 +393,17 @@ $broadcastArray =$null
 $nicArray = $null
 $nicVMName = $null
 $ilbIPArray = $null
+$apimIPArray = $null
+$appgwIPArray = $null
 $ilbName = $null
+$apimName = $null
+$appgwName = $null
+$gwName = $null
 $ilbIP = $null
 $gwIP = $null
-$gwName = $null
+$apimIP = $null
+$appgwIP = $null
+
 } #Closes the foreach for vnets
 
 }
@@ -439,6 +476,20 @@ foreach ($nic in $nicObjects){
 foreach ($ilb in $ilbObjects){
     if(($ilb.FrontendIPConfigurations.Subnet.Id) -match $sourceVNET){
         $ilbIPArray += ,$ilb.FrontendIPConfigurations.PrivateIpAddress
+    }   
+}
+
+#Get's the IPs of APIMs that are in the VNET we are checking.
+foreach ($apim in $apimObjects){
+    if(($apim.VirtualNetwork.SubnetResourceId.split("/")[-3]) -eq $vnetname){
+        $apimIPArray += ,$apim.StaticIPs[1]
+    }   
+}
+
+#Get's the IPs of AppGWs that are in the VNET we are checking.
+foreach ($appgw in $appgwObjects){
+    if(($appgw.FrontendIpConfigurations.Subnet.Id) -match $vnetname){
+        $appgwIPArray += ,$appgw.FrontendIpConfigurations.PrivateIPAddress
     }   
 }
 
@@ -526,13 +577,36 @@ foreach($ip in $IPRangesArray){
                 $ilbIP = $ilb.FrontendIPConfigurations.PrivateIpAddress
                 if($ilbIP -eq $ip){
                     $ilbName = $ilb.name
-                    }   
-                
+                    }     
             }
             Write-Host "$ip is being used by an ILB - $ilbName" -ForegroundColor Red
             $ipTable += ,$ip
             $availTable += ,"False"
             $nameTable += ,$ilbName
+        }
+        elseif($apimIPArray -contains $ip){
+            foreach ($apim in $apimObjects){
+                $apimIP = $apim.StaticIPs[1]
+                if($apimIP -eq $ip){
+                    $apimName = $apim.name
+                    }     
+            }
+            Write-Host "$ip is being used by an APIM - $apimName" -ForegroundColor Red
+            $ipTable += ,$ip
+            $availTable += ,"False"
+            $nameTable += ,$apimName
+        }
+        elseif($appgwIPArray -contains $ip){
+            foreach ($appgw in $appgwObjects){
+                $appgwIP = $appgw.FrontendIPConfigurations.PrivateIpAddress
+                if($appgwIP -eq $ip){
+                    $appgwName = $appgw.name
+                    }     
+            }
+            Write-Host "$ip is being used by an AppGW - $appgwName" -ForegroundColor Red
+            $ipTable += ,$ip
+            $availTable += ,"False"
+            $nameTable += ,$appgwName
         }
         elseif($gwIP -contains $ip){
             Write-Host "$ip is being used by a GW - $gwName" -ForegroundColor Red
@@ -555,8 +629,15 @@ $nicArray = $null
 $nicVMName = $null
 $ilbIPArray = $null
 $ilbName = $null
+$apimIP = $null
+$apimName = $null
+$apimIPArray = $null
+$appgwIP = $null
+$appgwName = $null
+$appgwIPArray = $null
 $gwIP = $null
 $gwName = $null
+$appgwIPArray = $null
 
 ###############
 while($tableCountIndex -ne 0){
@@ -574,8 +655,6 @@ $tableCountIndex--
 
 $file = "$Path\AvailableIps-for-Vnet-$SourceVNET-Subnet-$SourceSUB.csv"
 $table | Select-Object IPAddress,Availability,ResourceName | Export-Csv -Path $file -NoTypeInformation | Out-Null
-
-Import-CSV $file | ConvertTo-Html -Head $css -Body "<h1>Source VNET: $SourceVNET - Source Subnet: $SourceSUB</h1>" | Out-File "C:\temp\test.html"
 
 } #closes First If Loop checking Sub & VNET info.
 
